@@ -20,10 +20,13 @@ docker compose exec -T app pytest -q
 - 5. 扣回核算：`/deductions`，`/api/deductions`。
 - 6. 进度对账：`/valuation`，`/api/valuation`。
 - 7. 签证归档：`/certificates`，`/api/certificates`。
+- 8. 合同签认：`/contracts`，`/api/contracts`（合同控制余量、分段签认、版本恢复）。
 
 ## 核心规则
 
 累计申报必须减前期已审金额，变更按审批生效版本覆盖；负进度需关联冲回证据。
+
+合同控制：可签余量=合同控制量-前期已签量。已批冲回先签认并退回余量，正增量按分段顺序签认到余量为止；未签认量留在原分段，不跨段挪用。签认按审批依据版本化，同依据重跑不重复占用，切换失败保留并可恢复上一版。
 
 ## 演示
 

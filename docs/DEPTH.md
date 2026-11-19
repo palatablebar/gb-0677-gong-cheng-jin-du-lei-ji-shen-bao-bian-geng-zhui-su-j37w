@@ -14,6 +14,8 @@
 | M6 进度对账 | 查看并运行进度对账 | `/api/valuation` | `app/modules/m6_valuation/rules.py` | `tests/test_m6.py` |
 | M7 签证归档 | 查看并运行签证归档 | `/api/certificates` | `app/modules/m7_certificates/rules.py` | `tests/test_m7.py` |
 
+| 取证留痕 | 合同控制签认 | `/contracts`，`/api/contracts` | `app/contracts.py`、`app/store.py` | `tests/test_contracts.py` |
+
 ## 陷阱登记
 
 | TRAP | 现象 | 朴素实现 | 本项目处理 | 处理位置 | 测试 |
@@ -30,10 +32,15 @@
 | TRAP-07 | 累计量空值 | 按零冲回 | 隔离缺失 | `app/values.py` | `tests/test_m2.py::test_real_null_not_zero` |
 | TRAP-10 | 分币舍入 | 浮点误差 | 分项量化后净额守恒 | `app/modules/m5_deductions/rules.py` | `tests/test_m5.py::test_fraction_rounds_to_cent` |
 | TRAP-23 | 变更生效边界 | 旧价覆盖 | 按周期选择已批版本 | `app/modules/m3_changes/rules.py` | `tests/test_m3.py::test_effective_boundary` |
+| TRAP-27 | 两段申报争抢同一控制余量 | 整段退回或把超额挪到另一段 | 冲回先签认、正增量按段签认到余量为止、超额留原段 | `app/contracts.py` | `tests/test_contracts.py::test_never_shift_excess_between_segments` |
+| TRAP-28 | 依据变化后重跑重复占用 | 每次重跑都新增占用 | 依据标识幂等，同依据复用现行修订 | `app/store.py` | `tests/test_contracts.py::test_rerun_same_basis_does_not_occupy_again` |
+| TRAP-29 | 切换失败丢旧版 | 先删旧再写新 | 单事务切换，失败回滚且可恢复历史修订 | `app/store.py` | `tests/test_contracts.py::test_failed_switch_keeps_previous_active` |
 
 ## 对账规则
 
 输入原始逻辑行=最终采纳来源行+隔离来源行+重复行+空白行+分段表头。派生记录用_sources保存完整来源，因此分组不丢行。业务预期合计与上游申报合计之差等于逐行差异之和。结果按输入摘要、规则版本及参数产生唯一批次，事务写入；同源重跑只复用已有批次。
+
+合同控制对账在同一批次内追加：先按清单周期取控制规则，再把已还原工程量按分段归集。每段签认量+未签认量=该段申报量，各段之和=合同申报总量；期末余量=期初余量+已批冲回-正签认量，且不得为负。签认按合同控制主档版本化：同一审批依据标识（输入+参数+规则版本）对应唯一修订，重跑只复用；依据变化时新修订把旧修订置为历史，而非累加占用。切换与恢复都在单事务内完成，任一校验失败整体回滚，历史修订可恢复。
 
 ## 已知不覆盖
 

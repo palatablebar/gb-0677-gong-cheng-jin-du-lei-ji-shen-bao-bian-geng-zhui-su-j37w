@@ -1,0 +1,3 @@
+claim_id,item,period,cumulative_qty,previous_qty,change_id,reversal,reported,note,segment
+10001,钢筋,2026-11,435,400,C1,none,3570.00,一工区本期申报,一工区
+10002,钢筋,2026-11,70,80,C1,approved,-1020.00,二工区已批冲回,二工区

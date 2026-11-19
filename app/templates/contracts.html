@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block kpis %}
+{% set m=contract.metrics %}
+<div class="kpis">
+  <div class="kpi">合同控制<strong>{{m.contracts}}</strong></div>
+  <div class="kpi">分段<strong>{{m.segments}}</strong></div>
+  <div class="kpi">签认量<strong>{{m.signed_qty}}</strong></div>
+  <div class="kpi">未签认量<strong>{{m.unsigned_qty}}</strong></div>
+  <div class="kpi">对平<strong>{{'是' if m.balanced else '否'}}</strong></div>
+</div>
+{% endblock %}
+{% block body %}
+{% if not contract.contracts %}
+<section class="panel"><div class="panel__body"><div class="empty">当前批次没有合同控制依据。可切换“合同控制·分段批”，或在导入时通过 parameters.contracts 提供合同控制量、前期已签量与分段顺序。</div></div></section>
+{% else %}
+{% for c in contract.contracts %}
+<section class="panel">
+  <div class="panel__head"><h2>{{c.item}} / {{c.period}} · 合同控制对账</h2><span>{{c.status}}</span></div>
+  <div class="panel__body">
+    <div class="audit-line"><span>合同控制量</span><b>{{c.control_qty}}</b></div>
+    <div class="audit-line"><span>前期已签量</span><b>{{c.prior_signed_qty}}</b></div>
+    <div class="audit-line"><span>期初可签余量</span><b>{{c.remaining_before}}</b></div>
+    <div class="audit-line"><span>本期申报量（含已批冲回）</span><b>{{c.requested_qty}}</b></div>
+    <div class="audit-line"><span>其中已批冲回</span><b>-{{c.reversal_qty}}</b></div>
+    <div class="audit-line"><span>本期签认量（净）</span><b>{{c.signed_qty}}</b></div>
+    <div class="audit-line"><span>未签认余量（留在原分段）</span><b>{{c.unsigned_qty}}</b></div>
+    <div class="audit-line"><span>期末可签余量</span><b>{{c.remaining_after}}</b></div>
+    <div class="audit-line"><span>控制校验</span><b>{{'全部通过' if c.balanced else '未通过'}}</b></div>
+  </div>
+  <div class="table-scroll"><table class="ledger"><thead><tr><th>分段</th><th>声明顺序</th><th>申报量</th><th>签认量</th><th>未签认量</th><th>签认总额</th><th>未签认总额</th><th>来源行</th><th>结论</th></tr></thead><tbody>
+    {% for s in c.segments %}<tr data-difference="{{'true' if s.unsigned_qty not in ('0','0.0','0.00') else 'false'}}"><td>{{s.segment}}</td><td>{{'是' if s.declared else '否'}}</td><td>{{s.requested_qty}}</td><td>{{s.signed_qty}}</td><td>{{s.unsigned_qty}}</td><td>{{s.signed_gross}}</td><td>{{s.unsigned_gross}}</td><td>{{s.source_lines|join('/')}}</td><td>{{s.status}}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="panel__body">
+    <table class="ledger"><thead><tr><th>申报编号</th><th>分段</th><th>来源行</th><th>申报量</th><th>签认量</th><th>未签认量</th><th>签认净额</th><th>结论</th></tr></thead><tbody>
+    {% for r in contract.rows if r.item==c.item and r.period==c.period %}<tr><td>{{r.claim_id}}</td><td>{{r.segment}}</td><td>{{r._sources|join('/')}}</td><td>{{r.requested_qty}}</td><td>{{r.signed_qty}}</td><td>{{r.unsigned_qty}}</td><td>{{r.signed_net}}</td><td>{{r.sign_status}}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="panel__body inputs">
+    <button class="primary sign" data-contract="{{c.contract_key}}">签认本合同控制</button>
+    {% set act=active.get(c.contract_key) %}
+    {% if act %}<span class="serial">现行 R{{act.revision}} / 依据 {{act.basis_id}} / 签认 {{act.signed_qty}}</span>{% else %}<span class="serial">尚无已签认版本</span>{% endif %}
+    <span class="notice" role="status"></span>
+  </div>
+  {% set st=state.contracts|selectattr('contract_key','equalto',c.contract_key)|list %}
+  {% if st and st[0].revisions %}
+  <div class="panel__body">
+    <div class="panel__head"><h2>签认版本</h2><span>{{st[0].revisions|length}}</span></div>
+    {% for rev in st[0].revisions %}
+    <div class="audit-line"><span>R{{rev.revision}} · {{rev.status}} · 依据 {{rev.basis_id}} · 批次 {{rev.run_id}} · 签认 {{rev.signed_qty}} / 未签 {{rev.unsigned_qty}} / 期末余量 {{rev.remaining_after}}</span>
+      <span>{% if rev.status!='active' %}<button class="restore" data-contract="{{c.contract_key}}" data-revision="{{rev.revision}}">恢复此版</button>{% else %}<b>现行</b>{% endif %}</span></div>
+    {% endfor %}
+    {% if st[0].revisions|selectattr('status','equalto','active')|list|length %}
+    <div class="audit-line"><span>切换失败可一键回退上一版。</span><button class="restore" data-contract="{{c.contract_key}}">恢复上一版</button></div>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endfor %}
+{% if contract.quarantine %}
+<section class="panel"><div class="panel__head"><h2>合同控制待核</h2><span>{{contract.quarantine|length}}</span></div><div class="panel__body">{% for q in contract.quarantine %}<div class="reason"><b>{{q.reason}}</b><span>行 {{q.get('_line','—')}} / {{q.detail}}</span></div>{% endfor %}</div></section>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/contracts.js"></script>{% endblock %}

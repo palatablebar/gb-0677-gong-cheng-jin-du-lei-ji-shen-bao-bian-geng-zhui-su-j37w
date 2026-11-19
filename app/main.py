@@ -2,6 +2,7 @@ from flask import Flask,jsonify,request,send_from_directory
 from app.config import ROOT,DATA_DIR,MODULES
 from app.errors import DomainError
 from app import pipeline,store
+from app.contracts_api import bp as contracts_bp
 from app.web import register_pages
 import importlib
 def create_app():
@@ -25,12 +26,23 @@ def create_app():
         if not isinstance(params,dict): raise DomainError("BAD_PARAMETERS","参数需要对象")
         raw=payload.get("csv")
         if raw is not None and not isinstance(raw,str): raise DomainError("BAD_CSV","CSV需要文本")
-        return pipeline.execute(raw.encode() if raw is not None else pipeline.load_sample(payload.get("sample","dirty.csv")),params)
+        if raw is None:
+            name=payload.get("sample","dirty.csv");params=pipeline.sample_parameters(name,params)
+            raw=pipeline.load_sample(name)
+            return pipeline.execute(raw,params)
+        return pipeline.execute(raw.encode(),params)
     @application.post("/api/upload")
     def upload():
         file=request.files.get("file")
         if not file: raise DomainError("NO_FILE","请选择CSV文件")
-        return pipeline.execute(file.read())
+        params={}
+        raw_params=request.form.get("parameters")
+        if raw_params:
+            import json
+            try: params=json.loads(raw_params)
+            except ValueError: raise DomainError("BAD_PARAMETERS","参数需要JSON对象")
+            if not isinstance(params,dict): raise DomainError("BAD_PARAMETERS","参数需要JSON对象")
+        return pipeline.execute(file.read(),params)
     @application.get("/api/runs")
     def history(): return {"runs":store.history()}
     @application.get("/api/runs/<run_id>")
@@ -48,6 +60,7 @@ def create_app():
     for index,(slug,title) in enumerate(MODULES,1):
         module=importlib.import_module(f"app.modules.m{index}_{slug}.handler")
         application.register_blueprint(module.bp)
+    application.register_blueprint(contracts_bp)
     register_pages(application)
     return application
 app=create_app()

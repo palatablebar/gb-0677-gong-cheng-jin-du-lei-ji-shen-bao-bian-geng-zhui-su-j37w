@@ -3,9 +3,10 @@ from app.reasons import reject
 from app.errors import DomainError
 def evaluate(rows,context):
     good=[];bad=[];overrides=context.get("parameters",{}).get("previous_revisions",{});seen=set()
-    for row in sorted(rows,key=lambda x:(x["item"],x["period"],x["claim_id"])):
-        key=(row["item"],row["period"])
-        if key in seen:bad.append(reject(row,"DUPLICATE_PERIOD","同清单同周期重复申报"));continue
+    for row in sorted(rows,key=lambda x:(x["item"],x["period"],str(x.get("segment","")),x["claim_id"])):
+        # 同一清单周期可分段申报；责任量按分段各自独立，不许同段重复。
+        key=(row["item"],row["period"],str(row.get("segment","")))
+        if key in seen:bad.append(reject(row,"DUPLICATE_PERIOD","同清单同周期同分段重复申报"));continue
         seen.add(key)
         prev=number(overrides.get(row["claim_id"],row["previous_qty"]));current=number(row["cumulative_qty"])
         if prev<0:raise DomainError("BAD_PREVIOUS","前审累计量不能为负")
